@@ -18,6 +18,10 @@ income_df = income_df.iloc[:, 1:]
 income_df.columns = ['State', '2017-18', '2018-19', '2019-20', '2020-21', '2021-22', '2022-23', '2023-24', '2024-25']
 income_df['State'] = income_df['State'].astype(str).str.strip()
 
+# Load real population/census data
+population_df = pd.read_csv('data/state_population.csv')
+population_df['State'] = population_df['State'].astype(str).str.strip()
+
 CITY_TO_STATE = {
     'bangalore': 'karnataka', 'bengaluru': 'karnataka', 'mysuru': 'karnataka',
     'mumbai': 'maharashtra', 'pune': 'maharashtra', 'nagpur': 'maharashtra',
@@ -30,19 +34,41 @@ CITY_TO_STATE = {
     'jaipur': 'rajasthan', 'ranchi': 'jharkhand', 'bhopal': 'madhya pradesh', 'indore': 'madhya pradesh',
 }
 
-def get_state_income_data(region_name):
-    """Look up real per-capita income data for a given state or city name."""
+def resolve_state_name(region_name):
+    """Map a city or state input to its actual state name."""
     search_term = region_name.strip().lower()
-    search_term = CITY_TO_STATE.get(search_term, search_term)
+    return CITY_TO_STATE.get(search_term, search_term)
 
+def get_state_income_data(search_term):
     for state_name in income_df['State'].dropna().unique():
         if search_term in state_name.lower() or state_name.lower() in search_term:
             row = income_df[income_df['State'] == state_name].iloc[0]
             latest_col = income_df.columns[-1]
             prev_col = income_df.columns[-2]
             return f"Per Capita Net State Domestic Product for {state_name} — Latest available year ({latest_col}): ₹{row[latest_col]}, Previous year ({prev_col}): ₹{row[prev_col]} (Source: RBI Handbook of Statistics on Indian States)"
+    return None
 
-    return "No official per-capita income data found for this exact region — analysis based on general market knowledge."
+def get_state_population_data(search_term):
+    for state_name in population_df['State'].dropna().unique():
+        if search_term in state_name.lower() or state_name.lower() in search_term:
+            row = population_df[population_df['State'] == state_name].iloc[0]
+            return f"Population: {row['Population']:,} | Population Density: {row['Density']} people/km² | Literacy Rate: {row['Literacy']}% | Sex Ratio: {row['Sex_Ratio']} females per 1000 males (Source: Census of India 2011)"
+    return None
+
+def get_real_data_context(region_name):
+    search_term = resolve_state_name(region_name)
+    income_data = get_state_income_data(search_term)
+    population_data = get_state_population_data(search_term)
+
+    if not income_data and not population_data:
+        return "No official government data found for this exact region — analysis based on general market knowledge."
+
+    context_parts = []
+    if income_data:
+        context_parts.append(income_data)
+    if population_data:
+        context_parts.append(population_data)
+    return " | ".join(context_parts)
 
 @app.route('/')
 def home():
@@ -54,14 +80,14 @@ def analyze():
     region = request.form['region']
     objective = request.form['objective']
 
-    real_data_context = get_state_income_data(region)
+    real_data_context = get_real_data_context(region)
 
     prompt = f"""
     You are Strategix AI — Market Entry & Business Strategy Advisor for Emerging Markets.
 
     A company wants to {objective} in the {industry} industry, targeting {region}, India.
 
-    REAL DATA CONTEXT (use this actual figure in your analysis, cite it explicitly):
+    REAL DATA CONTEXT (use these actual figures in your analysis, cite them explicitly):
     {real_data_context}
 
     Provide a structured strategy report with this exact format (include the emojis exactly as shown in each heading):
@@ -71,7 +97,7 @@ def analyze():
     **Subject:** Market Entry Strategy for {region} ({industry})
 
     ## 📊 1. Market Attractiveness (Score out of 10)
-    [analysis — reference the real per-capita income figure provided above where relevant]
+    [analysis — reference the real population, density, literacy, and income figures provided above where relevant]
     **💡 Tactical Tip:** [one practical, actionable tip specific to this section]
 
     ## 🏁 2. Competitive Landscape
@@ -238,7 +264,7 @@ def analyze():
         <div class="top-header">
             <h1>STRATEGIX AI</h1>
             <p>Market Entry & Business Strategy Advisor for Emerging Economies</p>
-            <div class="data-badge">✓ Grounded in RBI Official Data</div>
+            <div class="data-badge">✓ Grounded in RBI & Census Official Data</div>
         </div>
         <div class="content-wrap">
             <div class="header-block">{header_block}</div>
