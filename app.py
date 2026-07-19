@@ -22,6 +22,10 @@ income_df['State'] = income_df['State'].astype(str).str.strip()
 population_df = pd.read_csv('data/state_population.csv')
 population_df['State'] = population_df['State'].astype(str).str.strip()
 
+# Load real ease of doing business data (DPIIT Business Reform Action Plan 2024)
+eodb_df = pd.read_csv('data/ease_of_doing_business.csv')
+eodb_df['State'] = eodb_df['State'].astype(str).str.strip()
+
 CITY_TO_STATE = {
     'bangalore': 'karnataka', 'bengaluru': 'karnataka', 'mysuru': 'karnataka',
     'mumbai': 'maharashtra', 'pune': 'maharashtra', 'nagpur': 'maharashtra',
@@ -55,12 +59,20 @@ def get_state_population_data(search_term):
             return f"Population: {row['Population']:,} | Population Density: {row['Density']} people/km² | Literacy Rate: {row['Literacy']}% | Sex Ratio: {row['Sex_Ratio']} females per 1000 males (Source: Census of India 2011)"
     return None
 
+def get_state_eodb_data(search_term):
+    for state_name in eodb_df['State'].dropna().unique():
+        if search_term in state_name.lower() or state_name.lower() in search_term:
+            row = eodb_df[eodb_df['State'] == state_name].iloc[0]
+            return f"Ease of Doing Business Category for {state_name}: '{row['EODB_Category']}' (Source: DPIIT Business Reform Action Plan (BRAP) 2024)"
+    return None
+
 def get_real_data_context(region_name):
     search_term = resolve_state_name(region_name)
     income_data = get_state_income_data(search_term)
     population_data = get_state_population_data(search_term)
+    eodb_data = get_state_eodb_data(search_term)
 
-    if not income_data and not population_data:
+    if not income_data and not population_data and not eodb_data:
         return "No official government data found for this exact region — analysis based on general market knowledge."
 
     context_parts = []
@@ -68,6 +80,8 @@ def get_real_data_context(region_name):
         context_parts.append(income_data)
     if population_data:
         context_parts.append(population_data)
+    if eodb_data:
+        context_parts.append(eodb_data)
     return " | ".join(context_parts)
 
 @app.route('/')
@@ -119,6 +133,10 @@ def analyze():
     ## 🗓️ 6. 90-Day Go-to-Market Action Plan
     [a practical, phased roadmap, use a markdown table with columns: Phase, Timeline, Key Actions]
     **💡 Tactical Tip:** [one practical, actionable tip]
+
+    ## 🏛️ 7. Ease of Doing Business & Regulatory Environment
+    [analysis — reference the real EODB/BRAP category provided above explicitly, and explain what that category practically means for licensing speed, compliance burden, and time-to-launch in this state]
+    **💡 Tactical Tip:** [one practical, actionable tip specific to this section]
 
     Keep it concise, practical, and specific to the Indian market context. Use only standard Markdown tables, never ASCII box characters. Do not use asterisk bullet points (*) — use proper Markdown bullets with a dash (-) instead.
     """
@@ -264,7 +282,7 @@ def analyze():
         <div class="top-header">
             <h1>STRATEGIX AI</h1>
             <p>Market Entry & Business Strategy Advisor for Emerging Economies</p>
-            <div class="data-badge">✓ Grounded in RBI & Census Official Data</div>
+            <div class="data-badge">✓ Grounded in RBI, Census & DPIIT Official Data</div>
         </div>
         <div class="content-wrap">
             <div class="header-block">{header_block}</div>
